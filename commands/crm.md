@@ -164,11 +164,11 @@ export default nextConfig;
 
 | בעיה | פתרון |
 |------|--------|
-| Vercel ESLint errors | `ignoreDuringBuilds: true` בnext.config.ts |
+| Vercel ESLint errors | `ignoreDuringBuilds: true` בנext.config.ts |
 | Turbopack build cache מגיש גרסה ישנה | לשנות קצת בקובץ אחר כדי לאלץ recompile |
 | `react-hooks/set-state-in-effect` | ESLint disabled בVercel |
 | `DialogTrigger` בbase-ui | להשתמש ב-`render={<Button />}` ולא `asChild` |
-| `onValueChange` ב-Select מחזיר `string \| null` | לטפל ב-null: `!v \|\| v === "none" ? "" : v` |
+| `onValueChange` ב-Select מחזיר `string | null` | לטפל ב-null: `!v \|\| v === "none" ? "" : v` |
 | ContactLink לא לחיץ | להשתמש ב-`onClick={() => window.location.href = ...}` במקום `<Link>` |
 | API route לא מחזיר `id` של contact | להוסיף `id: true` ב-`select` של `include` |
 
@@ -176,8 +176,8 @@ export default nextConfig;
 
 ## RTL
 
-כל Dialog/חלון: `dir="rtl"`.
-Layout ראשי: `dir="rtl"` ב-`layout.tsx`.
+כל Dialog/חלון: `dir="rtl"`.  
+Layout ראשי: `dir="rtl"` ב-`layout.tsx`.  
 כל הטקסטים, כפתורים, ותוויות — בעברית.
 
 ---
