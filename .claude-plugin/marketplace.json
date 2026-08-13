@@ -1,0 +1,18 @@
+{
+  "name": "crm-plugin",
+  "description": "Plugin marketplace for the CRM builder skill",
+  "owner": {
+    "name": "Shilo Liato"
+  },
+  "plugins": [
+    {
+      "name": "crm-builder",
+      "description": "בונה CRM עסקי בעברית (RTL) מאפס עם Next.js, Prisma ו-Vercel",
+      "version": "1.0.0",
+      "source": "./",
+      "author": {
+        "name": "Shilo Liato"
+      }
+    }
+  ]
+}
