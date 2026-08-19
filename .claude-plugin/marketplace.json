@@ -8,7 +8,7 @@
     {
       "name": "crm-builder",
       "description": "בונה CRM עסקי בעברית (RTL) מאפס עם Next.js, Prisma ו-Vercel",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "source": "./",
       "author": {
         "name": "Shilo Liato"

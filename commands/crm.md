@@ -8,7 +8,7 @@
 
 - **Framework:** Next.js 16.2.10 עם Turbopack (**לא** Next.js רגיל — יש breaking changes. קרא `node_modules/next/dist/docs/` לפני קוד)
 - **UI:** Tailwind CSS v4 + shadcn/ui, style `base-nova` (variant של base-ui, **לא** radix)
-- **ORM:** Prisma 7 עם PostgreSQL (Neon cloud database), דרך `@prisma/adapter-pg` (לא Prisma Client הישן) + `prisma.config.ts`
+- **ORM:** Prisma 7 עם PostgreSQL (**Prisma Postgres** — host בפורמט `<project>.db.prisma.io:5432`, לא Neon), דרך `@prisma/adapter-pg` (לא Prisma Client הישן) + `prisma.config.ts`
 - **Deploy:** Vercel עם GitHub auto-deploy
 - **וואטסאפ:** Green API — גם שליחה יזומה (פולו-אפ) וגם webhook נכנס
 - **שפה:** TypeScript strict
@@ -77,15 +77,16 @@ model Contact {
 }
 
 model Deal {
-  id        Int      @id @default(autoincrement())
-  title     String
-  value     Float?
-  stage     String   @default("ליד")
-  notes     String?
-  contactId Int?
-  contact   Contact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  tasks     Task[]
-  createdAt DateTime @default(now())
+  id                  Int      @id @default(autoincrement())
+  title               String
+  value               Float?
+  stage               String   @default("ליד")
+  notes               String?
+  contactId           Int?
+  contact             Contact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tasks               Task[]
+  createdAt           DateTime @default(now())
+  wasExistingCustomer Boolean?
 }
 
 model Task {
@@ -114,6 +115,7 @@ model Activity {
 הערות:
 - `Task.updatedAt` חייב `@updatedAt` — הטבלה ב-`/contacts` ממיינת לפיו וכל פולו-אפ דוחה משימה, אז חייב להתעדכן אוטומטית.
 - `Contact.bookCount` קיים בסכמה וב-API (נשמר/נקרא) אבל **לא מוצג באף מסך UI כרגע** — שדה legacy, אפשר להשאיר או להסיר.
+- `Deal.wasExistingCustomer` הוא **תמונת מצב קפואה** של `contact.isExistingCustomer` בדיוק ברגע שהעסקה נוצרה מ-`CloseDealDialog` (ראה `/contacts` למטה) — לא מחושב לייב מהלקוח. עסקאות שנוצרו ידנית דרך `/deals` (לא דרך סגירת סטטוס) משאירות את זה `null`, ולכן לא נספרות באף אחד משני כרטיסי ההכנסה בדשבורד.
 - `onDelete: Cascade` על `Task.contactId` ו-`Deal.contactId`, ו-`onDelete: SetNull` על `Task.dealId` — כדי שמחיקת איש קשר תמחוק גם משימות/עסקאות משויכות (כמו שההודעה למשתמש ב-`deleteContact` מזהירה).
 
 ### `prisma.config.ts` (Prisma 7 — נדרש, לא אופציונלי)
@@ -277,14 +279,17 @@ Header עם לוגו במרכז (`Image src="/logo.png"`, לינק ל-`/`), ומ
 
 ### `/` — דשבורד
 
-טוען `contacts` + `tasks` + `deals` במקביל (`Promise.all`). מציג שורת כרטיסי סטטיסטיקה (`grid-cols-2 md:grid-cols-3 lg:grid-cols-6`):
+טוען `contacts` + `tasks` + `deals` במקביל (`Promise.all`). מציג שורת כרטיסי סטטיסטיקה (`grid-cols-2 md:grid-cols-4 lg:grid-cols-7`):
 
 1. אנשי קשר — `contacts.length`
 2. משימות ממתינות — `tasks.filter(!completed).length`
 3. משימות באיחור — `!completed && dueDate < now`, באדום אם > 0
 4. עסקאות פתוחות — `stage` שאינו `"סגור-נוצח"`/`"סגור-הפסד"`
 5. שווי עסקאות פתוחות — סכום `value` של הפתוחות
-6. **💰 הכנסות מעסקאות סגורות** — סכום `value` של כל העסקאות בשלב `"סגור-נוצח"` (כולל אלו שנוצרו אוטומטית דרך `CloseDealDialog` ב-`/contacts`)
+6. **💰 הכנסות מלקוחות קיימים** — סכום `value` של עסקאות `"סגור-נוצח"` עם `wasExistingCustomer === true`
+7. **💰 הכנסות מלקוחות חדשים** — סכום `value` של עסקאות `"סגור-נוצח"` עם `wasExistingCustomer === false`
+
+**חשוב:** שני הכרטיסים האלה מסתמכים על `wasExistingCustomer` **הקפוא** על ה-`Deal` (ראה הערה בסכמה למעלה) — הם **לא** מסתכלים על `contact.isExistingCustomer` העדכני. כך שינוי בתיוג "חדש/קיים" של לקוח אחרי שהעסקה נסגרה לא מזיז הכנסות בין הכרטיסים בדיעבד. עסקאות עם `wasExistingCustomer === null` (למשל שנוצרו ידנית ב-`/deals`) לא נכללות באף אחד מהם.
 
 מתחת, שלושה כרטיסים (`grid-cols-1 md:grid-cols-3`):
 - **💰 מכירות אחרונות** — 5 עסקאות `"סגור-נוצח"` אחרונות (`createdAt` יורד), שם לקוח (לינק לפרופיל) + סכום
@@ -313,9 +318,9 @@ Header עם לוגו במרכז (`Image src="/logo.png"`, לינק ל-`/`), ומ
 - **חשוב לגבי רוחב הטבלה:** להשתמש ב-`table-fixed` עם רוחבים קבועים לעמודות הצדדיות (שם/פעולות) ו-`truncate`/`line-clamp` על טקסט ארוך (שם עסק, כותרת משימה) כדי שהטבלה לא תגלוש הצידה. כותרות עמודות (`TableHead`) צריכות לאפשר `whitespace-normal` כדי שלא יחפפו זו את זו.
 
 **סגירת עסקה מהטבלה (`CloseDealDialog`):**
-בחירת "✅ סגור" ב-`Select` הסטטוס **לא** שומרת סטטוס מיד — היא פותחת `CloseDealDialog` ששואל "כמה הלקוח קנה? (₪)". רק בשליחת הטופס:
+בחירת "✅ סגור" ב-`Select` הסטטוס **לא** שומרת סטטוס מיד — היא פותחת `CloseDealDialog` ששואל "כמה הלקוח קנה? (₪)". ברגע שנפתח הדיאלוג (לא ברגע השליחה) נשמר גם `isExistingCustomer` הנוכחי של הלקוח בתוך ה-state של הדיאלוג — זו התמונה שתיקפא על העסקה. רק בשליחת הטופס:
 1. הסטטוס של איש הקשר נשמר בפועל כ-"✅ סגור" (`updateStatus`)
-2. נוצרת `Deal` חדשה: `POST /api/deals` עם `{ title: "מכירה - {שם}", value: הסכום, stage: "סגור-נוצח", contactId }`
+2. נוצרת `Deal` חדשה: `POST /api/deals` עם `{ title: "מכירה - {שם}", value: הסכום, stage: "סגור-נוצח", contactId, wasExistingCustomer: <הערך שנשמר בפתיחת הדיאלוג> }`
 
 אם המשתמש סוגר את הדיאלוג בלי לשלוח (Escape / קליק על הרקע / `onOpenChange(false)`), הסטטוס **לא** משתנה — כי ה-`Select` מוצג לפי `contact.status` שטרם עודכן, כך שהוא חוזר לערך הקודם אוטומטית. בחירה בכל סטטוס אחר (לא "✅ סגור") שומרת מיד כרגיל. **הערה:** בחירה חוזרת ב-"✅ סגור" כשהסטטוס כבר "✅ סגור" לא מפעילה שוב את הדיאלוג (אין עדיין מנגנון למכירה חוזרת ללקוח שכבר סגור).
 
@@ -375,7 +380,9 @@ export function CloseDealDialog({
 בעמוד `/contacts`, קריאת החיבור בין ה-`Select` ל-`CloseDealDialog`:
 ```typescript
 const CLOSED_STATUS = "✅ סגור";
-const [closeDealContact, setCloseDealContact] = useState<{ id: number; name: string } | null>(null);
+const [closeDealContact, setCloseDealContact] = useState<{
+  id: number; name: string; isExistingCustomer: boolean;
+} | null>(null);
 
 async function confirmCloseDeal(amount: number) {
   if (!closeDealContact) return;
@@ -388,6 +395,7 @@ async function confirmCloseDeal(amount: number) {
       value: amount,
       stage: "סגור-נוצח",
       contactId: closeDealContact.id,
+      wasExistingCustomer: closeDealContact.isExistingCustomer,
     }),
   });
   setCloseDealContact(null);
@@ -396,7 +404,9 @@ async function confirmCloseDeal(amount: number) {
 // ב-Select של הסטטוס:
 onValueChange={(v) => {
   if (!v) return;
-  if (v === CLOSED_STATUS) setCloseDealContact({ id: contact.id, name: contact.name });
+  if (v === CLOSED_STATUS) {
+    setCloseDealContact({ id: contact.id, name: contact.name, isExistingCustomer: contact.isExistingCustomer });
+  }
   else updateStatus(contact.id, v);
 }}
 ```
@@ -693,7 +703,7 @@ export default nextConfig;
 ### משתני סביבה נדרשים
 
 ```
-DATABASE_URL=...              # Neon PostgreSQL
+DATABASE_URL=...              # Prisma Postgres (db.prisma.io) — או כל Postgres תואם
 CRM_PASSWORD=...              # סיסמת הכניסה ל-/login
 GREEN_API_ID_INSTANCE=...
 GREEN_API_API_TOKEN=...
@@ -753,7 +763,7 @@ Layout ראשי: `dir="rtl"` ב-`html`, לא רק ב-`div` פנימי.
 1. **Green API** — יצירת instance ב-[green-api.com](https://green-api.com), והזנת `GREEN_API_ID_INSTANCE` + `GREEN_API_API_TOKEN` (ב-`.env` מקומי וב-Vercel Environment Variables)
 2. **לוגו ומיתוג** — החלפת `public/logo.png` בלוגו של העסק, ועדכון `alt`/`metadata.title` ב-`app/layout.tsx` ו-`components/nav.tsx` לשם העסק בפועל
 3. **סיסמת כניסה** — קביעת `CRM_PASSWORD` משלו
-4. **בסיס נתונים** — יצירת Neon Postgres (או ספק אחר) והזנת `DATABASE_URL`, ואז `prisma db push`
+4. **בסיס נתונים** — יצירת Prisma Postgres (או ספק Postgres אחר) והזנת `DATABASE_URL`, ואז `prisma db push`
 5. **(אופציונלי) Webhook נכנס** — אם רוצים ליצור אנשי קשר אוטומטית מהודעות וואטסאפ נכנסות, להגדיר `WHATSAPP_WEBHOOK_SECRET` ולחבר אותו ב-Green API כ-webhook ל-`/api/whatsapp`
 
 **אין** להזין דאטה אמיתית של לקוחות בקוד או בסקיל הזה — כל לקוח מוזן בפועל דרך ה-UI (`+ איש קשר חדש`) אחרי שהמערכת רצה.
